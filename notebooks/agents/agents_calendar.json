@@ -1,0 +1,133 @@
+{
+  "agent": "google-calendar",
+  "label": "Google Calendar API",
+  "base_url": "https://www.googleapis.com/calendar/v3",
+  "auth": {
+    "type": "oauth",
+    "format": "Bearer"
+  },
+  "endpoints": [
+    {
+      "name": "search_events",
+      "label": "🔍 Search Calendar Events",
+      "description": "Search calendar events using a keyword.",
+      "method": "GET",
+      "path": "/calendars/{calendarId}/events",
+      "path_params": {
+        "calendarId": "The calendar identifier (e.g. 'primary' or a calendar ID string)."
+      },
+      "query_params": {
+        "q": "Free‑text search terms to filter events (string, required)."
+      },
+      "examples": [
+        {
+          "url": "https://www.googleapis.com/calendar/v3/calendars/primary/events?q=dinner"
+        }
+      ]
+    },
+    {
+      "name": "list_upcoming_events",
+      "label": "📆 List Upcoming Events",
+      "description": "List upcoming calendar events ordered by start time.",
+      "method": "GET",
+      "path": "/calendars/{calendarId}/events",
+      "path_params": {
+        "calendarId": "The calendar identifier (e.g. 'primary' or a calendar ID string)."
+      },
+      "query_params": {
+        "orderBy": "Sort order for events (e.g. 'startTime', string, optional).",
+        "singleEvents": "Whether to expand recurring events into instances (boolean, optional).",
+        "timeMin": "RFC3339 timestamp to only return events after this time (string, optional).",
+        "maxResults": "Maximum number of events to return (integer, optional)."
+      },
+      "examples": [
+        {
+          "url": "https://www.googleapis.com/calendar/v3/calendars/primary/events?orderBy=startTime&singleEvents=true&timeMin=2024-02-26T00:00:00Z&maxResults=5"
+        }
+      ]
+    },
+    {
+      "name": "create_event",
+      "label": "🗓️ Create Calendar Event",
+      "description": "Create a new event in the user's calendar.",
+      "method": "POST",
+      "path": "/calendars/{calendarId}/events",
+      "path_params": {
+        "calendarId": "The calendar identifier (e.g. 'primary' or a calendar ID string)."
+      },
+      "body_params": {
+        "summary": "Title or summary of the event (string, required).",
+        "start": "Object with 'dateTime' (RFC3339 string) and 'timeZone' (string, required).",
+        "end": "Object with 'dateTime' (RFC3339 string) and 'timeZone' (string, required).",
+        "attendees": "Array of attendee objects, each with an 'email' field (array of { email: string }, optional)."
+      },
+      "examples": [
+        {
+          "url": "https://www.googleapis.com/calendar/v3/calendars/primary/events",
+          "parameters": {
+            "summary": "Dinner with John",
+            "start": {
+              "dateTime": "2024-02-26T20:00:00",
+              "timeZone": "Australia/Sydney"
+            },
+            "end": {
+              "dateTime": "2024-02-26T22:00:00",
+              "timeZone": "Australia/Sydney"
+            },
+            "attendees": [
+              { "email": "john@example.com" }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "delete_event",
+      "label": "❌ Delete Calendar Event",
+      "description": "Delete a specific calendar event.",
+      "method": "DELETE",
+      "path": "/calendars/{calendarId}/events/{eventId}",
+      "path_params": {
+        "calendarId": "The calendar identifier (e.g. 'primary' or a calendar ID string).",
+        "eventId": "The identifier of the event to delete."
+      },
+      "examples": [
+        {
+          "url": "https://www.googleapis.com/calendar/v3/calendars/primary/events/abc123"
+        }
+      ]
+    },
+    {
+      "name": "update_event",
+      "label": "✏️ Update Calendar Event",
+      "description": "Update details of a calendar event.",
+      "method": "PATCH",
+      "path": "/calendars/{calendarId}/events/{eventId}",
+      "path_params": {
+        "calendarId": "The calendar identifier (e.g. 'primary' or a calendar ID string).",
+        "eventId": "The identifier of the event to update."
+      },
+      "body_params": {
+        "summary": "Updated title or summary of the event (string, optional).",
+        "start": "Updated start object with 'dateTime' (RFC3339 string) and 'timeZone' (string, optional).",
+        "end": "Updated end object with 'dateTime' (RFC3339 string) and 'timeZone' (string, optional)."
+      },
+      "examples": [
+        {
+          "url": "https://www.googleapis.com/calendar/v3/calendars/primary/events/abc123",
+          "parameters": {
+            "summary": "Updated Dinner with John",
+            "start": {
+              "dateTime": "2024-02-26T21:00:00",
+              "timeZone": "Australia/Sydney"
+            },
+            "end": {
+              "dateTime": "2024-02-26T23:00:00",
+              "timeZone": "Australia/Sydney"
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

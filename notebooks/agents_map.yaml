@@ -1,0 +1,5 @@
+#- google-gmail
+#- google-gmail: agents/agents_gmail.txt
+- google-calendar: agents/agents_calendar.txt
+- google-places: agents/agents_places.txt
+#- open-weather-map: agents/agents_owm.txt

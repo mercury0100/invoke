@@ -1,0 +1,89 @@
+{
+  "agent": "google-places",
+  "label": "Google Places API",
+  "base_url": "https://maps.googleapis.com/maps/api/place",
+  "auth": {
+    "type": "query",
+    "format": "key"
+  },
+  "endpoints": [
+    {
+      "name": "search_places",
+      "label": "🔍 Search Places",
+      "description": "Search for places using free-form text input.",
+      "method": "GET",
+      "path": "/textsearch/json",
+      "query_params": {
+        "input": "Free-form text input to search for places (string, required).",
+        "inputtype": "The type of input, e.g. 'textquery' (string, required)."
+      },
+      "examples": [
+        {
+          "url": "https://maps.googleapis.com/maps/api/place/textsearch/json?input=Mexican+restaurant+Bondi&inputtype=textquery"
+        }
+      ]
+    },
+    {
+      "name": "place_details",
+      "label": "📍 Place Details",
+      "description": "Retrieve detailed information about a place using its place_id.",
+      "method": "GET",
+      "path": "/details/json",
+      "query_params": {
+        "place_id": "The unique identifier of the place (string, required)."
+      },
+      "examples": [
+        {
+          "url": "https://maps.googleapis.com/maps/api/place/details/json?place_id=ChIJN1t_tDeuEmsRUsoyG83frY4"
+        }
+      ]
+    },
+    {
+      "name": "nearby_search",
+      "label": "📌 Nearby Search",
+      "description": "Find places within a given radius of a location.",
+      "method": "GET",
+      "path": "/nearbysearch/json",
+      "query_params": {
+        "location": "Latitude/longitude around which to retrieve place information, formatted as 'lat,lng' (string, required).",
+        "radius": "Distance in meters within which to return place results (integer, required)."
+      },
+      "examples": [
+        {
+          "url": "https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=-33.870775,151.199025&radius=500"
+        }
+      ]
+    },
+    {
+      "name": "find_place",
+      "label": "🔎 Find Place by Name or Address",
+      "description": "Search for a place using name or address.",
+      "method": "GET",
+      "path": "/findplacefromtext/json",
+      "query_params": {
+        "input": "The text string on which to search, e.g. a name or address (string, required).",
+        "inputtype": "The type of input, e.g. 'textquery' (string, required)."
+      },
+      "examples": [
+        {
+          "url": "https://maps.googleapis.com/maps/api/place/findplacefromtext/json?input=Sydney%20Opera%20House&inputtype=textquery"
+        }
+      ]
+    },
+    {
+      "name": "autocomplete",
+      "label": "✍️ Autocomplete Place Search",
+      "description": "Autocomplete a place search query.",
+      "method": "GET",
+      "path": "/autocomplete/json",
+      "query_params": {
+        "input": "Partial text input for autocomplete suggestions (string, required)."
+      },
+      "examples": [
+        {
+          "url": "https://maps.googleapis.com/maps/api/place/autocomplete/json?input=Sydney"
+        }
+      ]
+    }
+  ]
+}

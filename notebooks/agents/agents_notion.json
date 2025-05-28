@@ -1,0 +1,105 @@
+{
+    "agent": "notion",
+    "label": "Notion API",
+    "base_url": "https://api.notion.com/v1",
+    "auth": {
+        "type": "oauth",
+        "format": "Bearer"
+    },
+    "headers": {
+        "Notion-Version": "2022-06-28"
+    },
+    "endpoints": [
+        {
+            "name": "list_databases",
+            "label": "📚 List Databases",
+            "description": "List all databases the integration has access to.",
+            "method": "GET",
+            "path": "/databases"
+        },
+        {
+            "name": "retrieve_database",
+            "label": "📘 Retrieve Database",
+            "description": "Retrieve the structure and metadata of a specific database.",
+            "method": "GET",
+            "path": "/databases/{database_id}"
+        },
+        {
+            "name": "query_database",
+            "label": "🔍 Query Database",
+            "description": "Query a database using filters, sorts, and pagination.",
+            "method": "POST",
+            "path": "/databases/{database_id}/query",
+            "body_params": {
+                "filter": "{filter_object}",
+                "sorts": "{sorts_array}"
+            }
+        },
+        {
+            "name": "create_page",
+            "label": "📝 Create Page",
+            "description": "Create a new page inside a database.",
+            "method": "POST",
+            "path": "/pages",
+            "body_params": {
+                "parent": "{parent_object}",
+                "properties": "{properties_object}",
+                "children": "{optional_blocks}"
+            }
+        },
+        {
+            "name": "retrieve_page",
+            "label": "📄 Retrieve Page",
+            "description": "Get metadata and properties of a specific page.",
+            "method": "GET",
+            "path": "/pages/{page_id}"
+        },
+        {
+            "name": "update_page",
+            "label": "✏️ Update Page Properties",
+            "description": "Update the properties of an existing page.",
+            "method": "PATCH",
+            "path": "/pages/{page_id}",
+            "body_params": {
+                "properties": "{properties_object}"
+            }
+        },
+        {
+            "name": "archive_page",
+            "label": "📦 Archive Page",
+            "description": "Archive a Notion page (sets archived: true).",
+            "method": "PATCH",
+            "path": "/pages/{page_id}",
+            "body_params": {
+                "archived": true
+            }
+        },
+        {
+            "name": "retrieve_block_children",
+            "label": "📂 List Block Children",
+            "description": "List all child blocks inside a block (e.g., a page).",
+            "method": "GET",
+            "path": "/blocks/{block_id}/children"
+        },
+        {
+            "name": "append_block_children",
+            "label": "➕ Append Block Children",
+            "description": "Append blocks (e.g., paragraph, list, to-do) to a page or block.",
+            "method": "PATCH",
+            "path": "/blocks/{block_id}/children",
+            "body_params": {
+                "children": "{blocks_array}"
+            }
+        },
+        {
+            "name": "search",
+            "label": "🔎 Global Search",
+            "description": "Search across pages and databases accessible by the integration.",
+            "method": "POST",
+            "path": "/search",
+            "body_params": {
+                "query": "{search_term}"
+            }
+        }
+    ]
+}

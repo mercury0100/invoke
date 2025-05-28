@@ -1,0 +1,57 @@
+{
+  "agent": "openweathermap",
+  "label": "OpenWeatherMap API",
+  "base_url": "https://api.openweathermap.org",
+  "auth": {
+    "type": "query",
+    "format": "appid"
+  },
+  "endpoints": [
+    {
+      "name": "current_weather",
+      "label": "☀️ Current Weather Data",
+      "description": "Retrieve current weather data for a specific city.",
+      "method": "GET",
+      "path": "/data/2.5/weather",
+      "query_params": {
+        "q": "City name to retrieve weather for (string, required)."
+      },
+      "examples": [
+        {
+          "url": "https://api.openweathermap.org/data/2.5/weather?q=London"
+        }
+      ]
+    },
+    {
+      "name": "forecast_5day_3hour",
+      "label": "🌡️ 5 Day / 3 Hour Forecast",
+      "description": "Retrieve weather forecast in 3-hour intervals for 5 days.",
+      "method": "GET",
+      "path": "/data/2.5/forecast",
+      "query_params": {
+        "q": "City name to retrieve forecast for (string, required)."
+      },
+      "examples": [
+        {
+          "url": "https://api.openweathermap.org/data/2.5/forecast?q=London"
+        }
+      ]
+    },
+    {
+      "name": "one_call",
+      "label": "📊 One Call API",
+      "description": "Retrieve comprehensive weather data including current, minutely, hourly, and daily forecasts.",
+      "method": "GET",
+      "path": "/data/2.5/onecall",
+      "query_params": {
+        "lat": "Latitude of the location (float, required).",
+        "lon": "Longitude of the location (float, required)."
+      },
+      "examples": [
+        {
+          "url": "https://api.openweathermap.org/data/2.5/onecall?lat=51.5074&lon=-0.1278"
+        }
+      ]
+    }
+  ]
+}

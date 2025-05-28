@@ -1,0 +1,174 @@
+{
+  "agent": "gmail",
+  "label": "Gmail API",
+  "base_url": "https://www.googleapis.com",
+  "auth": {
+    "type": "oauth",
+    "format": "Bearer",
+    "code": "i"
+  },
+  "endpoints": [
+    {
+      "name": "list_emails",
+      "label": "📥 List Emails (Inbox)",
+      "description": "List emails matching a search query.",
+      "method": "GET",
+      "path": "/gmail/v1/users/me/messages",
+      "query_params": {
+        "q": "Free‑text search term or Gmail search operators (e.g. 'is:unread', 'from:example@gmail.com')."
+      },
+      "examples": [
+        {
+          "url": "https://www.googleapis.com/gmail/v1/users/me/messages?q=meeting"
+        }
+      ],
+      "notes": [
+        "Returns a list of message IDs in the inbox."
+      ]
+    },
+    {
+      "name": "get_email",
+      "label": "📧 Get Email Details",
+      "description": "Retrieve full details of a specific email.",
+      "method": "GET",
+      "path": "/gmail/v1/users/me/messages/{messageId}",
+      "path_params": {
+        "messageId": "The ID of the email message to retrieve."
+      },
+      "examples": [
+        {
+          "url": "https://www.googleapis.com/gmail/v1/users/me/messages/123456"
+        }
+      ],
+      "notes": [
+        "Returns headers, labels, and full content."
+      ]
+    },
+    {
+      "name": "get_thread",
+      "label": "🧵 Get Email Thread",
+      "description": "Retrieve all messages in a thread.",
+      "method": "GET",
+      "path": "/gmail/v1/users/me/threads/{threadId}",
+      "path_params": {
+        "threadId": "The ID of the thread to retrieve."
+      },
+      "examples": [
+        {
+          "url": "https://www.googleapis.com/gmail/v1/users/me/threads/abc123"
+        }
+      ],
+      "notes": [
+        "Returns all messages in the conversation."
+      ]
+    },
+    {
+      "name": "list_labels",
+      "label": "🏷️ List Labels",
+      "description": "Get all Gmail labels for the user.",
+      "method": "GET",
+      "path": "/gmail/v1/users/me/labels",
+      "examples": [
+        {
+          "url": "https://www.googleapis.com/gmail/v1/users/me/labels"
+        }
+      ],
+      "notes": [
+        "Useful for categorizing or filtering messages."
+      ]
+    },
+    {
+      "name": "send_email",
+      "label": "✉️ Send Email",
+      "description": "Send an email via Gmail.",
+      "method": "POST",
+      "path": "/gmail/v1/users/me/messages/send",
+      "body_params": {
+        "raw": "The entire email content, base64‑encoded (RFC 2822 format)."
+      },
+      "notes": [
+        "Construct 'to', 'subject', 'body' headers and body before encoding."
+      ]
+    },
+    {
+      "name": "create_draft",
+      "label": "📝 Create Draft",
+      "description": "Save an email as a draft.",
+      "method": "POST",
+      "path": "/gmail/v1/users/me/drafts",
+      "body_params": {
+        "message": "An object containing a 'raw' field with the base64‑encoded email."
+      },
+      "notes": [
+        "Same format as sending, but saves instead of sending."
+      ]
+    },
+    {
+      "name": "send_draft",
+      "label": "🚀 Send Draft",
+      "description": "Send an existing draft.",
+      "method": "POST",
+      "path": "/gmail/v1/users/me/drafts/send",
+      "body_params": {
+        "id": "The ID of the draft to send."
+      },
+      "notes": [
+        "Draft ID comes from create_draft response."
+      ]
+    },
+    {
+      "name": "get_attachment",
+      "label": "📎 Get Attachment",
+      "description": "Download an attachment from an email.",
+      "method": "GET",
+      "path": "/gmail/v1/users/me/messages/{messageId}/attachments/{attachmentId}",
+      "path_params": {
+        "messageId": "The ID of the email containing the attachment.",
+        "attachmentId": "The ID of the attachment to download."
+      },
+      "examples": [
+        {
+          "url": "https://www.googleapis.com/gmail/v1/users/me/messages/123456/attachments/abc789"
+        }
+      ],
+      "notes": [
+        "Attachment ID comes from the message's body part metadata."
+      ]
+    },
+    {
+      "name": "delete_email",
+      "label": "🗑️ Delete Email",
+      "description": "Move a specific email to Trash.",
+      "method": "DELETE",
+      "path": "/gmail/v1/users/me/messages/{messageId}",
+      "path_params": {
+        "messageId": "The ID of the email to delete."
+      },
+      "examples": [
+        {
+          "url": "https://www.googleapis.com/gmail/v1/users/me/messages/123456"
+        }
+      ],
+      "notes": [
+        "To permanently delete, append '?deleted=true' to the URL."
+      ]
+    },
+    {
+      "name": "modify_labels",
+      "label": "🧹 Modify Labels",
+      "description": "Add or remove labels from an email.",
+      "method": "POST",
+      "path": "/gmail/v1/users/me/messages/{messageId}/modify",
+      "path_params": {
+        "messageId": "The ID of the email whose labels you want to change."
+      },
+      "body_params": {
+        "addLabelIds": "Array of label IDs to add (e.g. ['STARRED']).",
+        "removeLabelIds": "Array of label IDs to remove (e.g. ['INBOX'])."
+      },
+      "notes": [
+        "Labels like 'STARRED', 'IMPORTANT', etc., can be added or removed."
+      ]
+    }
+  ]
+}

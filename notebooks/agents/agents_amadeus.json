@@ -1,0 +1,119 @@
+{
+  "agent": "amadeus",
+  "label": "✈️ Amadeus Travel APIs",
+  "base_url": "https://test.api.amadeus.com/v1",
+  "auth": {
+    "type": "machine",
+    "format": "Bearer"
+  },
+  "headers": {
+    "Accept": "application/json"
+  },
+  "endpoints": [
+    {
+      "name": "search_flight_offers",
+      "label": "🛫 Search Flight Offers",
+      "description": "Search for the lowest available flight offers based on origin, destination, and travel dates.",
+      "method": "GET",
+      "path": "/shopping/flight-offers",
+      "query_params": {
+        "originLocationCode": "IATA airport code for departure (e.g. SYD)",
+        "destinationLocationCode": "IATA airport code for arrival (e.g. LAX)",
+        "departureDate": "Departure date in YYYY-MM-DD format",
+        "returnDate": "Return date (for round trip)",
+        "adults": "Number of adult passengers",
+        "children": "Number of children (optional)",
+        "travelClass": "Travel class: ECONOMY, PREMIUM_ECONOMY, BUSINESS, FIRST",
+        "nonStop": "true or false to filter direct flights",
+        "currencyCode": "Preferred currency (e.g. AUD, USD)",
+        "max": "Maximum number of results"
+      },
+      "examples": [
+        {
+          "url": "https://test.api.amadeus.com/v2/shopping/flight-offers?originLocationCode=SYD&destinationLocationCode=LAX&departureDate=2025-06-01&adults=1&travelClass=ECONOMY&nonStop=true",
+          "parameters": {
+            "originLocationCode": "SYD",
+            "destinationLocationCode": "LAX",
+            "departureDate": "2025-06-01",
+            "adults": "1",
+            "travelClass": "ECONOMY",
+            "nonStop": "true"
+          }
+        }
+      ]
+    },
+    {
+      "name": "search_hotels",
+      "label": "🏨 Search Hotels by City",
+      "description": "Search hotels in a given city using IATA code.",
+      "method": "GET",
+      "path": "/shopping/hotel-offers",
+      "query_params": {
+        "cityCode": "IATA city code (e.g. NYC, PAR, SYD)",
+        "adults": "Number of adults",
+        "checkInDate": "Check-in date (YYYY-MM-DD)",
+        "checkOutDate": "Check-out date (YYYY-MM-DD)",
+        "roomQuantity": "Number of rooms",
+        "radius": "Search radius in km",
+        "radiusUnit": "Unit for radius (KM or MI)"
+      },
+      "examples": [
+        {
+          "url": "https://test.api.amadeus.com/v2/shopping/hotel-offers?cityCode=PAR&adults=2&checkInDate=2025-06-01&checkOutDate=2025-06-03",
+          "parameters": {
+            "cityCode": "PAR",
+            "adults": "2",
+            "checkInDate": "2025-06-01",
+            "checkOutDate": "2025-06-03"
+          }
+        }
+      ]
+    },
+    {
+      "name": "search_inspiration",
+      "label": "🌍 Flight Inspiration",
+      "description": "Get a list of cheap flight destinations from an origin airport.",
+      "method": "GET",
+      "path": "/shopping/flight-destinations",
+      "query_params": {
+        "origin": "IATA code of departure airport",
+        "departureDate": "Date to depart (optional)",
+        "oneWay": "true or false",
+        "maxPrice": "Maximum price in currency units",
+        "currency": "Currency code (e.g. USD)"
+      },
+      "examples": [
+        {
+          "url": "https://test.api.amadeus.com/v1/shopping/flight-destinations?origin=SYD&maxPrice=1000&currency=AUD",
+          "parameters": {
+            "origin": "SYD",
+            "maxPrice": "1000",
+            "currency": "AUD"
+          }
+        }
+      ]
+    },
+    {
+      "name": "search_locations",
+      "label": "📍 Location Autocomplete",
+      "description": "Find airport or city codes by keyword.",
+      "method": "GET",
+      "path": "/reference-data/locations",
+      "query_params": {
+        "keyword": "Free text query (e.g. Paris)",
+        "subType": "CITY, AIRPORT, etc.",
+        "countryCode": "Filter by country code (optional)",
+        "max": "Max number of results"
+      },
+      "examples": [
+        {
+          "url": "https://test.api.amadeus.com/v1/reference-data/locations?keyword=Paris&subType=CITY",
+          "parameters": {
+            "keyword": "Paris",
+            "subType": "CITY"
+          }
+        }
+      ]
+    }
+  ]
+}

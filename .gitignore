@@ -1,0 +1,26 @@
+# Environment variables
+.env
+
+# Python bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Local credentials and state
+notebooks/.invoke/
+notebooks/.gitignore
+
+
+# Jupyter notebook artifacts
+.ipynb_checkpoints/
+
+# Python packaging
+*.egg-info/
+pyinvoke.egg-info/
+dist/
+build/
+
+# Python
+invoke/__pycache__
+
+.invoke
