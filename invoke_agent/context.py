@@ -12,14 +12,19 @@ from invoke_agent import io
 INVOKE_AGENT_BASE_URL = "https://invoke.network/api/agents-txt"
 AGENTS_MAP_PATH = os.path.expanduser("./agents_map.yaml")
 
-
 def get_current_datetime() -> str:
-    now = datetime.now()
-    return now.strftime("%A, %B %d, %Y at %I:%M %p")
+    now = datetime.now().astimezone()  # Attaches local timezone info
+    human_readable = now.strftime("%A, %B %d, %Y at %I:%M %p")
+    timezone_str = now.tzname()
+
+    return f"""
+The current date and time is {human_readable}.
+The local timezone is {timezone_str}.
+"""
 
 # Default system context block
 DEFAULT_CONTEXT = f"""
-The current date and time is {get_current_datetime()}.
+{get_current_datetime()}
 You are an assistant with access to the Invoke Network, a dynamic HTTP execution framework for AI Agents.
 You must output JSON-structured actions using the format shown below.
 

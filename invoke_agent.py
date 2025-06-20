@@ -10,29 +10,17 @@ openai_key = os.getenv("OPENAI_API_KEY")
 llm = ChatOpenAI(
     model="gpt-4.1",
     openai_api_key=openai_key,
-    #temperature=0.1,  # Balances creativity & coherence
-    #max_tokens=5000   # Adjust as needed
 )
 
 integrations = [
-    "open-meteo",
-    "open-weather-map",
-    "google-directions",
-    "google-places",
-    "google-calendar", # 2 failures - bad examples
-    "google-gmail", # 4 failures - Bad examples
-    #"google-tasks", # ???
-    #"google-contacts", # ???
-    #"google-drive", # ???
-    #"youtube", # 2 failures - bad examples
-    #"microsoft-outlook", # 2 failures - Bad examples
-    #"microsoft-calendar", # 2 failures - Bad examples
-    #"microsoft-onenote",
-    "spotify", # 4 failures - no premium
-    #"calendly", # No account
+    "google-contacts",
+    "google-tasks",
+    "google-calendar",
+    "google-gmail-send",
+    "youtube"
     ]
 
-invoke = InvokeAgent(llm, integrations, verbose=False)
+invoke = InvokeAgent(llm, integrations)
 
 # Start interactive loop
 print("\n🤖 Invoke Chat Agent is running. Type your request below.")
