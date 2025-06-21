@@ -1,6 +1,12 @@
-# Invoke Documentation
+# Codename: Invoke
+
+![logo](./img/invoke-spellbook-logo.png)
 
 Invoke is a lightweight framework that connects LLMs with real-world APIs using natural language and structured tool calls.
+
+![25-second demo](./img/demo.gif)
+
+See the full demo [here](https://www.youtube.com/watch?v=CQISrRpyigs).
 
 ---
 
@@ -30,6 +36,8 @@ while True:
     response = invoke.chat(user_input)
     print("\n🤖", response)
 ```
+
+[Youtube tutorial](https://www.youtube.com/watch?v=DtAbD-3ZSi8)
 
 ---
 
@@ -71,9 +79,7 @@ print(result["output"])
 
 - 🌐 Access any HTTP API using natural language.
 - 🔑 Automatic OAuth and API key management.
-- 📁 Supports both OpenAI and Claude-style function calls.
-- 🧠 Persistent chat memory for multi-turn conversations.
-- 🧩 Flexible integrations via YAML, JSON, or TXT definitions.
+- 🧩 Flexible integrations via JSON, or TXT definitions.
 - 🤖 Works with any LangChain-compatible LLM (we recommend GPT-4.1).
 
 ---
@@ -110,7 +116,7 @@ invoke = InvokeAgent(llm)
   "agent": "gmail",
   "label": "Gmail API",
   "base_url": "https://www.googleapis.com",
-  "auth": {"type": "oauth", "format": "Bearer", "code": "i"},
+  "auth": {"type": "oauth", "code": "i"},
   "endpoints": [ /* ... */ ]
 }
 ```
@@ -120,11 +126,8 @@ invoke = InvokeAgent(llm)
 ## 🔐 Authorization
 
 - **None**: no auth.  
-- **query**: `query::api_key`  
-- **header**: `header::Authorization`  
-- **body**: `body::token` (injects credential into JSON body)  
-- **oauth**: `oauth::Bearer::i` (Invoke-managed OAuth flow)  
-- **machine**: `machine::client` (M2M credentials)
+- **api_key**: `api_key` (Locally-managed API key)  
+- **oauth**: `oauth::i` (Invoke-managed OAuth flow)  
 
 Override per-endpoint using `auth_code`. When specified, it **overrides** the top-level `auth`.
 
@@ -174,9 +177,20 @@ Each file plays a specific role:
 
 Jump right in with [example notebooks](./notebooks) to run your first agent with OpenAI, Claude, or Mistral.
 
-Want to integrate a new API? Head to [agents_json.md](./docs/agents_json.md).
+Want to integrate a new API? Head to [agents_json.md](./docs/agents_json.md), add your agents.json and follow the prompts.
 
-Need OAuth? See [oauth.md](./oauth.md) or override [`io.get_oauth_code()`](./io.md).
+Need OAuth? See [auth.md](./docs/auth.md) or override [`io.get_oauth_code()`](./io.md).
+
+## ⚙️ Ready to deploy? Use Per-User Mode
+
+```python
+from invoke_agent.auth import set_current_user
+
+# e.g. in a web request after authentication:
+set_current_user(current_user.id)
+```
+
+**All OAuthManager calls now use credentials under that user_id namespace, and will never prompt interactively.**
 
 ---
 

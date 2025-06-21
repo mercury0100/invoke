@@ -29,8 +29,7 @@ Each file corresponds to a single service or API, and defines:
   "label": "OpenWeatherMap API",
   "base_url": "https://api.openweathermap.org/data/2.5",
   "auth": {
-    "type": "query",      // "query" | "header" | "body" | "oauth" | "machine"
-    "format": "appid",
+    "type": "api_key",      // "api_key" | "oauth"
     "code": "i"
   },
   "headers": {
@@ -49,24 +48,6 @@ Each file corresponds to a single service or API, and defines:
 | `auth`      | object   | ❌       | Default auth scheme for all endpoints. See below for types.                                  |
 | `headers`   | object   | ❌       | Default HTTP headers applied to every request. Per‑endpoint `headers` override these.         |
 | `endpoints` | array    | ✅       | List of endpoint definitions (see next section).                                             |
-
-### 🔐 `auth` Object
-
-Defines where and how to insert credentials for each call:
-
-```jsonc
-"auth": {
-  "type": "query",    // options: "query" | "header" | "body" | "oauth" | "machine"
-  "format": "Bearer",// e.g. "Bearer", "token", "appid"
-  "code": "i"       // credential identifier for Invoke or local auth
-}
-```
-
-- **query**: Add as `?format=token`  
-- **header**: Add as `Authorization: format token`  
-- **body**: Inject into JSON body  
-- **oauth**: Invoke-managed OAuth flow  
-- **machine**: Machine‑to‑machine credential (e.g., client‑ID/secret)
 
 ---
 
@@ -107,7 +88,7 @@ Each endpoint definition must include the following keys:
 | `query_params`  | object          | ❌       | Mapping `paramName` → `description`. Rendered as `?key={key}&…`. Can be omitted by the LLM if unneeded. |
 | `body_params`   | object          | ❌       | Mapping `paramName` → `description`. Used only for write methods (POST/PUT/PATCH).                     |
 | `headers`       | object          | ❌       | Per-endpoint headers. These **override** any top-level `headers`.                                      |
-| `auth_code`     | string          | ❌       | Override for default `auth`. E.g. `"oauth::Bearer"`.                                                 |
+| `auth_code`     | string          | ❌       | Override for default `auth`. E.g. `"oauth::i"`.                                                 |
 | `examples`      | array of object | ✅ᴿ    | Real-world call snippets. Include at least one to guide the LLM.                                       |
 | `notes`         | array of string | ❌       | Developer hints, caveats, or usage tips.                                                              |
 
@@ -119,9 +100,8 @@ Each endpoint definition must include the following keys:
 
 - **Param descriptions**: Describe all `path_params`, `query_params`, and `body_params` as name→description, never example values.  
 - **Examples**: Supply real example values under `examples.parameters`.  
-- **Header overrides**: Use per-endpoint `headers` only when needed; they override global headers.  
 - **Auth**: Only override `auth_code` for endpoints requiring a different scheme.  
-- **Labels**: Use clear labels + emoji for human readability.  
+- **Labels**: Use clear labels (+ emoji) for human readability.  
 
 ---
 

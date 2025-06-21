@@ -1,174 +1,140 @@
 # 🔐 `auth.py` — API Key & OAuth Credential Manager
 
-This module manages API authentication for Invoke. It handles both API key and OAuth token storage, prompting, injection, and refreshing — all stored securely in `.invoke/credentials.json`.
+This module manages API authentication for Invoke. It handles:
 
----
+* **Static API keys** with configurable injection (`query`/`header`/`body`), always stored under a global namespace.
+* **OAuth2 tokens** (both authorization‐code and client‐credentials) stored per‐user or in a global fallback.
 
-## 📁 Credential Storage
-
-- **Location**: `.invoke/credentials.json`
-- Automatically created if not present.
-- Auto-added to `.gitignore` to avoid leaks.
+All credentials live in `.invoke/credentials.json`, automatically created (and Git-ignored).
 
 ---
 
 ## 📦 Import
 
 ```python
-from invoke_agent.auth import APIKeyManager, OAuthManager, MachineManager
+from invoke_agent.auth import (
+    APIKeyManager,
+    OAuthManager,
+    set_current_user
+)
 ```
 
 ---
 
 ## 🔑 `APIKeyManager`
 
-Handles API key retrieval and prompting. Used for any service requiring a static key in the query, header, or body.
+Handles API-key retrieval and injection config:
 
-### 🔧 Methods
+* **Global only** (no per-user scoping).
+* Two new methods:
 
-#### `get_api_key(url: str) -> str`
+### `get_api_cfg(url: str) -> tuple[str, str]`
 
-- Looks up the domain from the URL.
-- If no key is saved, prompts the user once.
-- Saves for future use.
+1. Looks up or prompts for injection config under the **global** namespace:
 
-✅ Smart fallback. 🔐 Secure local storage.
+   * `in`: `"query"` | `"header"` | `"body"`
+   * `name`: the param/header/field name
+2. Saves to `.invoke/credentials.json` if missing.
+3. Raises a `ValueError` in non-interactive (user) mode if missing.
+
+### `get_api_key(url: str) -> str`
+
+1. Retrieves the API key string under the **global** namespace.
+2. Prompts once if unset (in dev).
+3. Raises a `ValueError` in non-interactive (user) mode if missing.
 
 ---
 
 ## 🔐 `OAuthManager`
 
-Handles **OAuth 2.0** tokens, including login flow and refresh.
+Manages all OAuth2 flows—authorization‐code **and** client-credentials—scoped per namespace:
 
-### 🔧 Methods
+* Call `set_current_user(user_id)` once to enable **per-user**, non-interactive mode.
+* If unset, falls back to a single **global** namespace with interactive prompts.
 
-#### `get_oauth_token(url: str) -> str`
+### `get_oauth_token(url: str) -> str`
 
-- Returns the token for the domain.
-- Prompts user for credentials if not saved.
-- Refreshes the token if expired.
+1. Determines the active namespace via `set_current_user` or `"global"`.
+2. Loads or (in dev) prompts for `oauth_cfg`:
 
-#### `refresh_token(domain: str) -> str`
-
-- Automatically called when the token has expired.
-- Saves new `access_token` and `expires_at`.
-
-#### `_prompt_user_for_credentials(domain: str)`
-
-- Asks the user for all required fields:
-  - `client_id`, `client_secret`
-  - `auth_url`, `token_url`
-  - `redirect_uri`, `scopes`
-- Opens the browser for login.
-- Prompts for code and completes token exchange.
+   ```jsonc
+   {
+     "grant_type":  "auth_code" | "machine",
+     "auth_method": "post" | "basic",
+     "client_id":   "...",
+     "client_secret":"...",
+     "authorize_url":"...",       // auth_code only
+     "redirect_uri":"...",        // auth_code only
+     "token_url":   "...",
+     "scopes":      "...",
+     "name":        "Authorization"
+   }
+   ```
+3. Fetches or refreshes the token (using `authlib`), storing `{"token": {...}}`.
+4. Returns `access_token` only—no header injection here.
+5. Raises if config or token is missing in non-interactive (user) mode.
 
 ---
 
-## 🧪 Example Credentials File
+## ⚙️ Per-User Mode
+
+```python
+from invoke_agent.auth import set_current_user
+
+# e.g. in a web request after authentication:
+set_current_user(current_user.id)
+
+# All OAuthManager calls now use credentials under that user_id namespace,
+# and will never prompt interactively.
+```
+
+If you never call `set_current_user`, everything falls back to `"global"` with interactive prompts.
+
+---
+
+## 🗄️ Example Credentials File
 
 ```json
 {
-  "googleapis.com": {
-    "api_key": "AIz...",
-    "oauth": {
-      "client_id": "...",
-      "access_token": "...",
-      "refresh_token": "...",
-      "expires_at": 1714080000
+  "global": {
+    "example.com": {
+      "api_key_cfg": { "in": "query",  "name": "appid" },
+      "api_key":     { "key": "XYZ123" }
+    }
+  },
+  "alice": {
+    "googleapis.com": {
+      "oauth_cfg": {
+        "grant_type":  "auth_code",
+        "auth_method": "post",
+        "client_id":   "…",
+        "client_secret":"…",
+        "authorize_url":"https://…",
+        "redirect_uri":"urn:ietf:wg:oauth:2.0:oob",
+        "token_url":   "https://…",
+        "scopes":      "calendar",
+        "name":        "Authorization"
+      },
+      "oauth": {
+        "token": {
+          "access_token":"…",
+          "refresh_token":"…",
+          "expires_at": 1714080000
+        }
+      }
     }
   }
 }
-
-```
-#### `get_oauth_token(url: str) -> str`
-
-* Returns the machine‐to‐machine access token for the given service URL.
-* Looks up stored credentials under the service’s base domain.
-* If no credentials are found, prompts the user to enter `client_id`, `client_secret`, and `token_url`.
-* If the stored token has expired, automatically calls `_refresh_token`.
-* On success, logs a shortened preview and returns the valid `access_token`.
-
-#### `_refresh_token(domain: str) -> str`
-
-* Invoked internally when the current token is expired or missing.
-* Sends a `POST` to the stored `token_url` using the **client credentials** grant.
-* Required headers:
-
-  * `Content-Type: application/x-www-form-urlencoded`
-  * `Accept: application/json`
-* On HTTP 200, parses `access_token` and `expires_in` from JSON.
-* Updates the credentials store with the new `access_token` and `expires_at`.
-* Persists the updated credentials file to disk.
-* Logs success and returns the refreshed `access_token`.
-
-#### `_prompt_user_for_credentials(domain: str)`
-
-* Interactive setup helper when no machine credentials exist.
-* Prompts the user for:
-
-  * `Client ID`
-  * `Client Secret`
-  * `Token URL` (the OAuth2 token endpoint)
-* Stores these under `credentials[domain]["machine"]` with empty token fields.
-* Saves the credentials JSON to disk for future lookup.
-* Logs confirmation once saved.
-
-#### `_get_base_domain(url: str) -> str`
-
-* Utility to extract the registrable domain (e.g. `api.example.com` → `example.com`).
-* Uses `urlparse` and `tldextract` to reliably handle subdomains and public suffixes.
-
----
-
-## 🧪 Example Credentials File
-
-```json
-{
-  "example.com": {
-    "machine": {
-      "client_id": "YOUR_CLIENT_ID",
-      "client_secret": "YOUR_CLIENT_SECRET",
-      "token_url": "https://auth.example.com/oauth2/token",
-      "access_token": "eyJ…",
-      "expires_at": 1714080000
-    }
-  }
-}
-```
-
----
-
-## 💬 Prompt Handling
-
-This module uses the `io.py` layer for prompting and logging. You can override it to plug in your own UI or Flask server.
-
-### Custom `get_oauth_code()` Support
-
-You can customize the OAuth code retrieval with:
-
-```python
-class CustomIOHandler(IOHandler):
-    def get_oauth_code(self):
-        # your custom logic (e.g. webhook listener)
-        return wait_for_code()
-```
-
-Then set it with:
-
-```python
-from invoke_agent import io
-io.set_io_handler(CustomIOHandler())
 ```
 
 ---
 
 ## 🧠 Design Highlights
 
-| Feature                  | Description                          |
-|--------------------------|--------------------------------------|
-| 🔒 Local credential cache | No env vars required, all secure     |
-| 🔁 Auto token refresh     | Transparent background refresh       |
-| 🌍 Domain-based lookup    | Works seamlessly with any URL        |
-| 🧩 Plug-and-play IO       | Replace CLI with custom UI handler   |
-
----
+| Feature                  | Description                                               |
+| ------------------------ | --------------------------------------------------------- |
+| 🔒 Global API-keys       | One key per domain, no user scoping                       |
+| 👤 Per-user OAuth tokens | Call `set_current_user()` to isolate credentials per user |
+| 🔁 Auto token refresh    | Tokens refresh transparently before expiry                |
+| 🌍 Domain-based lookup   | Works with any API’s base URL                             |
+| 🧩 Plug-and-play IO      | Interactive prompts in dev, non-interactive in prod       |

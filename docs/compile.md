@@ -71,8 +71,7 @@ Parses the JSON text of an `agents.json` file and emits a Markdown-style specifi
   "label": "OpenWeatherMap API",
   "base_url": "https://api.openweathermap.org",
   "auth": {
-    "type": "query",      // "query" | "header" | "body" | "oauth" | "machine"
-    "format": "appid",
+    "type": "api_key",      // "api_key" | "oauth"
     "code": "your_api_key"
   },
   "headers": {
