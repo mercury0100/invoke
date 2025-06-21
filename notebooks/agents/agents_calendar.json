@@ -3,8 +3,7 @@
   "label": "Google Calendar API",
   "base_url": "https://www.googleapis.com/calendar/v3",
   "auth": {
-    "type": "oauth",
-    "format": "Bearer"
+    "type": "oauth"
   },
   "endpoints": [
     {

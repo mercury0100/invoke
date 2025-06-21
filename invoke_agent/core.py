@@ -5,44 +5,32 @@ import tldextract
 from typing import Dict, Any, Optional
 from dotenv import load_dotenv
 import os
-import yaml
 
 from langchain_core.tools import tool
+from invoke_agent.auth import APIKeyManager, OAuthManager, _ns
 
-from invoke_agent.auth import APIKeyManager, OAuthManager, MachineManager
-
-# Global references
 load_dotenv()
-invoke_api_key = os.getenv("INVOKE_API_KEY")
+invoke_api_key  = os.getenv("INVOKE_API_KEY")
 api_key_manager = APIKeyManager()
-oauth_manager = OAuthManager()
-machine_manager = MachineManager()
+oauth_manager   = OAuthManager()
 
-# Handle non-JSON responses appropriately
-MAX_CHARS = 50000
+MAX_CHARS = 50000  # maximum length of response text we keep
 
-def extract_error_message(response):
+def extract_error_message(response: requests.Response) -> str:
+    """Extract message from JSON error or fallback to raw text."""
     try:
-        # Try to parse JSON response
         data = response.json()
-
-        # Common patterns
         if "error" in data:
-            if isinstance(data["error"], dict):
-                return data["error"].get("message", str(data["error"]))
-            return str(data["error"])
-        elif "message" in data:
+            err = data["error"]
+            return err.get("message", str(err)) if isinstance(err, dict) else str(err)
+        if "message" in data:
             return data["message"]
-
-        # Fallback if JSON has no standard error/message
         return json.dumps(data)
-
     except Exception:
-        # Fallback for non-JSON response
         return response.text
-        
+    
 def route_api_request(method, url, headers=None, params=None, data=None,
-                      auth_type="none", auth_name="none", invoke_flag="o", invoke_key='none', timeout=10):
+                      auth_type="none", invoke_flag="o", invoke_key='none', ns=None, timeout=10):
     """
     Routes an API request through a Cloudflare Worker.
     
@@ -68,9 +56,9 @@ def route_api_request(method, url, headers=None, params=None, data=None,
         "body": data,  # could be None or a string/dict (if dict, Cloudflare Worker may need to re-serialize)
         "main_domain": main_domain,
         "auth_type": auth_type,
-        "auth_name": auth_name,
         "invoke_flag": invoke_flag,
-        "invoke_key": invoke_key
+        "invoke_key": invoke_key,
+        "ns": ns,
     }
     
     # Define your Cloudflare Worker endpoint URL.
@@ -87,99 +75,89 @@ def route_api_request(method, url, headers=None, params=None, data=None,
     
     return response
 
-# --- The execute_api_call Function with Modularization, Flexible Injection, and Non-JSON Handling ---
 def execute_api_call(task: Dict[str, Any]) -> Dict[str, Any]:
-    global api_key_manager, oauth_manager
-    """Extracts required fields, injects authentication tokens, executes API calls, and handles non-JSON responses."""
+    """
+    1) “There is No Step One”
+    2) Extract fields from `task`
+    3) Parse auth_code into auth_type & invoke_flag
+    4) Inject auth (api_key or oauth)
+    5) Build URL vs payload
+    6) Send via requests or Cloudflare Worker
+    7) Parse JSON or return raw text
+    8) Handle HTTP and parsing errors
+    """
     try:
         # Step 1: There is No Step One
-        
+
         # Step 2: Extract required fields
-        method = task.get("method", "GET").upper()
-        url = task.get("url")
-        params = task.get("parameters", {})
-        auth_code = task.get("auth_code", "none")  # Default to 'none'
-        
+        method    = task.get("method", "GET").upper()
+        url       = task.get("url")
+        params    = task.get("parameters", {}) or {}
+        headers   = {"Content-Type": "application/json", **(task.get("headers") or {})}
+        auth_code = task.get("auth_code", "none")
+
         if not url:
             return {"error": "❌ No URL provided in the action."}
 
-        default_headers = {"Content-Type": "application/json"}
-        headers = task.get("headers", {})
-        headers = {**default_headers, **headers}
+        # Step 3: Parse auth_code
+        parts       = auth_code.split("::", 1)
+        auth_type   = parts[0]
+        invoke_flag = parts[1] if len(parts) > 1 else None
         
-        auth_type = None
-        auth_name = None
-        invoke_flag = None
-        if auth_code != 'none':
-            auth_code = auth_code.split('::')
-            auth_type = auth_code[0]
-            auth_name = auth_code[1]
-            try:
-                invoke_flag = auth_code[2]
-            except IndexError:
-                invoke_flag = None
+        if auth_type not in ("none", "api_key", "oauth"):
+            return {"error": f"❌ Unsupported auth_type: {auth_type!r}. Must be one of none, api_key, oauth."}
         
-            # Local Integrations
-            if invoke_flag != 'i':
-                # Step 4: API Key Injection (only if auth_type is 'query', 'header', or 'body')
-                if auth_type in ("query", "header", "body"):
-                    api_key = api_key_manager.get_api_key(url)
-                    parsed_url = urlparse(url)
-                    query_params = dict(parse_qsl(parsed_url.query))
-                    if auth_type == "query":
-                        query_params[auth_name] = api_key
-                    elif auth_type == "header":
-                        headers["Authorization"] = f"Bearer {api_key}"
-                    elif auth_type == "body":
-                        params[auth_name] = api_key
-                    # Rebuild the URL with updated query parameters
-                    url = f"{parsed_url.scheme}://{parsed_url.netloc}{parsed_url.path}?{urlencode(query_params, doseq=True)}"
-
-                # Step 4.3333: OAuth Token Injection (only if auth_type is 'oauth')
-                if auth_type == "oauth":
-                    try:
-                        oauth_token = oauth_manager.get_oauth_token(url)
-                        headers["Authorization"] = f"{auth_name} {oauth_token}"
-                    except ValueError:
-                        return {"error": "❌ OAuth token retrieval failed."}
-                
-                # Step 4.6667: Machine Token Injection (only if auth_type is 'machine')
-                if auth_type == "machine":
-                    try:
-                        machine_token = machine_manager.get_oauth_token(url)
-                        headers["Authorization"] = f"{auth_name} {machine_token}"
-                    except ValueError:
-                        return {"error": "❌ Machine token retrieval failed."}
-
-        # Step 5: For GET requests, merge parameters into the URL
-        if method == "GET":
-            parsed_url = urlparse(url)
-            query_params = dict(parse_qsl(parsed_url.query))
-            query_params.update(params)
-            url = f"{parsed_url.scheme}://{parsed_url.netloc}{parsed_url.path}?{urlencode(query_params, doseq=True)}"
-            payload = None
-        else:
-            payload = json.dumps(params)
-
-        # Step 6: Execute the API Request
         if invoke_flag != 'i':
-            response = requests.request(method, url, headers=headers, data=payload, timeout=10)
+            # Step 4: Auth injection
+            if auth_type == "api_key":
+                key = api_key_manager.get_api_key(url)
+                where, name = api_key_manager.get_api_cfg(url)
+                if where == "query":
+                    params[name] = key
+                elif where == "header":
+                    headers[name] = key
+                else:  # "body"
+                    params[name] = key
+
+            elif auth_type == "oauth":
+                try:
+                    token = oauth_manager.get_oauth_token(url)
+                except Exception as e:
+                    return {"error": f"❌ OAuth token retrieval failed: {e}"}
+                headers["Authorization"] = f"Bearer {token}"
+
+        # Step 5: Build URL vs payload
+        if method == "GET":
+            parsed = urlparse(url)
+            q = dict(parse_qsl(parsed.query))
+            q.update(params)
+            url = f"{parsed.scheme}://{parsed.netloc}{parsed.path}?{urlencode(q, doseq=True)}"
+            body = None
         else:
-            response = route_api_request(method,
-                                     url,
-                                     headers=headers,
-                                     data=payload,
-                                     auth_type=auth_type,
-                                     auth_name=auth_name,
-                                     invoke_flag=invoke_flag,
-                                     invoke_key=invoke_api_key,
-                                     timeout=10)
+            body = json.dumps(params)
 
+        # Step 6: Execute the request
+        if invoke_flag == "i":
+            response = route_api_request(
+                method=method,
+                url=url,
+                headers=headers,
+                params=params if method == "GET" else None,
+                data=body,
+                auth_type=auth_type,
+                invoke_flag=invoke_flag,
+                invoke_key=invoke_api_key,
+                ns=_ns(),
+                timeout=10
+            )
+        else:
+            response = requests.request(method, url, headers=headers, data=body, timeout=10)
 
+        # Step 7: Handle successful response
         if response.ok:
             content_type = response.headers.get("Content-Type", "").lower()
+            text = response.text[:MAX_CHARS]
             if "application/json" in content_type:
-                text = response.text[:MAX_CHARS]
                 try:
                     return json.loads(text)
                 except json.JSONDecodeError:
@@ -187,27 +165,36 @@ def execute_api_call(task: Dict[str, Any]) -> Dict[str, Any]:
             else:
                 return {
                     "content_type": content_type,
-                    "text": response.text[:MAX_CHARS],
+                    "text": text,
                     "status_code": response.status_code
                 }
-        else:
-            return {"error": f"❌ HTTP {response.status_code} -+- 💀 ERR0R: {extract_error_message(response)}"}
+
+        # Step 8: HTTP error status
+        return {
+            "error": f"❌ HTTP {response.status_code} – {extract_error_message(response)}"
+        }
 
     except json.JSONDecodeError:
-        return {"error": "❌ Invalid JSON format received"}
+        return {"error": "❌ Invalid JSON format received."}
     except requests.exceptions.Timeout:
-        return {"error": "⏳ Request timed out"}
+        return {"error": "⏳ Request timed out."}
     except Exception as e:
-        return {"error": f"⚠️ {str(e)}"}
-    
-# Tool definition
+        return {"error": f"⚠️ Unexpected error: {e}"}
+
+
 @tool
-def api_executor(method: str, url: str, auth_code: str, parameters: Optional[dict] = None, headers: Optional[dict] = None) -> str:
+def api_executor(
+    method: str,
+    url: str,
+    auth_code: str,
+    parameters: Optional[dict] = None,
+    headers: Optional[dict] = None
+) -> Any:
     """Execute HTTP requests using the Invoke framework."""
     return execute_api_call({
-        "method": method,
-        "url": url,
-        "auth_code": auth_code,
+        "method":     method,
+        "url":        url,
+        "auth_code":  auth_code,
         "parameters": parameters or {},
-        "headers": headers or {}
+        "headers":    headers or {}
     })

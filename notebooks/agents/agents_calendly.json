@@ -3,8 +3,7 @@
   "label": "📅 Calendly API",
   "base_url": "https://api.calendly.com",
   "auth": {
-    "type": "header",
-    "format": "Bearer"
+    "type": "api_key"
   },
   "headers": {
     "Accept": "application/json"

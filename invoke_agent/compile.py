@@ -62,7 +62,7 @@ def render_agents_txt(agent_json_str: str) -> str:
     default_auth_code = None
     if default_auth:
         # Join type, format, and code into a single string e.g. "Bearer::Token::abc123"
-        parts = [default_auth.get("type"), default_auth.get("format"), default_auth.get("code")]
+        parts = [default_auth.get("type"), default_auth.get("code")]
         default_auth_code = "::".join(filter(None, parts))
         lines.append(f"Auth Code: {default_auth_code}")
 

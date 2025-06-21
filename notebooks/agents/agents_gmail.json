@@ -4,7 +4,6 @@
   "base_url": "https://www.googleapis.com",
   "auth": {
     "type": "oauth",
-    "format": "Bearer",
     "code": "i"
   },
   "endpoints": [

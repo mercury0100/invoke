@@ -4,7 +4,6 @@
   "base_url": "https://api.github.com",
   "auth": {
     "type": "oauth",
-    "format": "Bearer",
     "code": "i"
   },
   "headers": {

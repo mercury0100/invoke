@@ -3,8 +3,7 @@
   "label": "OpenWeatherMap API",
   "base_url": "https://api.openweathermap.org",
   "auth": {
-    "type": "query",
-    "format": "appid"
+    "type": "api_key"
   },
   "endpoints": [
     {

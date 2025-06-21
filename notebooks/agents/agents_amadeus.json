@@ -3,8 +3,7 @@
   "label": "✈️ Amadeus Travel APIs",
   "base_url": "https://test.api.amadeus.com/v1",
   "auth": {
-    "type": "machine",
-    "format": "Bearer"
+    "type": "oauth"
   },
   "headers": {
     "Accept": "application/json"

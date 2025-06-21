@@ -1,246 +1,229 @@
-import json
-import os
-import time
-import requests
-import webbrowser
-from urllib.parse import urlparse, urlencode
-import tldextract
+# auth.py
 
+import time
+import webbrowser
+from typing import Optional
+from urllib.parse import urlparse
+import tldextract
+from authlib.integrations.requests_client import OAuth2Session
 from invoke_agent import io
 
-gitignore_path = ".gitignore"
-config_path = ".invoke"
+GLOBAL_NS     = "global"
+EXPIRY_BUFFER = 60  # seconds before expiry to refresh
 
-CREDENTIALS_PATH = os.path.join(os.getcwd(), config_path, "credentials.json")
-os.makedirs(os.path.dirname(CREDENTIALS_PATH), exist_ok=True)
+_current_user_id: Optional[str] = None
 
-# Add to .gitignore if not already present
-if os.path.exists(gitignore_path):
-    with open(gitignore_path, "r") as f:
-        lines = f.read().splitlines()
-    if config_path not in lines:
-        with open(gitignore_path, "a") as f:
-            f.write(f"\n{config_path}\n")
-else:
-    with open(gitignore_path, "w") as f:
-        f.write(f"{config_path}\n")
+def set_current_user(user_id: str) -> None:
+    """
+    Call this once to switch all subsequent OAuth lookups
+    into the given user namespace (non‐interactive mode).
+    """
+    global _current_user_id
+    _current_user_id = user_id
 
-# --- JSON utilities ---
-def load_json_file(file_path: str) -> dict:
-    try:
-        with open(file_path, "r") as f:
-            return json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
-        with open(file_path, "w") as f:
-            json.dump({}, f)
-        return {}
+def _ns() -> str:
+    """
+    Returns the active namespace: either the set user_id or GLOBAL_NS.
+    """
+    return _current_user_id if _current_user_id is not None else GLOBAL_NS
 
-def save_json_file(file_path: str, data: dict) -> None:
-    with open(file_path, "w") as f:
-        json.dump(data, f, indent=4)
+def _domain_of(url: str) -> str:
+    host = urlparse(url).netloc
+    ext  = tldextract.extract(host)
+    return f"{ext.domain}.{ext.suffix}"
 
-# --- API Key Manager ---
+
 class APIKeyManager:
-    def __init__(self):
-        self.credentials = load_json_file(CREDENTIALS_PATH)
+    """
+    Manages API-key injection config and retrieval.
 
-    def get_api_key(self, url):
-        domain = self._get_base_domain(url)
-        io.io.notify(f"🔍 Looking for API key for: {domain}")
+    Config (per domain) under "<GLOBAL_NS>/<domain>/api_key_cfg":
+      - in:   "query" | "header" | "body"
+      - name: parameter/header/field name
 
-        if domain not in self.credentials or "api_key" not in self.credentials[domain]:
-            return self._prompt_user_for_api_key(domain)
+    Key itself stored under "<GLOBAL_NS>/<domain>/api_key": {"key": "..."}
+    """
 
-        key = self.credentials[domain]["api_key"]
-        io.io.notify(f"✅ Retrieved API key for {domain}: {key[:5]}********")
+    def get_api_cfg(self, url: str) -> tuple[str, str]:
+        """
+        Returns (where, name), prompting if no config is found in dev.
+        Raises if in user mode and config is missing.
+        """
+        ns     = GLOBAL_NS
+        domain = _domain_of(url)
+        io.io.notify(f"🔍 Loading API-key config for {domain}")
+
+        cfg = io.io.load_credential(ns, domain, "api_key_cfg") or {}
+        if not cfg:
+            if _current_user_id is not None:
+                raise ValueError(f"No API-key config for {domain} in user mode")
+            io.io.notify(f"\n🛠️ No API-key config for {domain}. Let’s set it up.")
+            where = io.io.prompt("Injection location (query/header/body) [query]: ")\
+                     .strip().lower() or "query"
+            name  = io.io.prompt("Parameter/header/field name [api_key]: ")\
+                     .strip() or "api_key"
+            cfg   = {"in": where, "name": name}
+            io.io.save_credential(ns, domain, "api_key_cfg", cfg)
+            io.io.notify(f"✅ Saved API-key config for {domain}")
+
+        return cfg["in"], cfg["name"]
+
+    def get_api_key(self, url: str) -> str:
+        """
+        Returns the API key string, prompting if not already stored in dev.
+        Raises if in user mode and key is missing.
+        """
+        ns     = GLOBAL_NS
+        domain = _domain_of(url)
+        io.io.notify(f"🔍 Loading API key for {domain}")
+
+        rec = io.io.load_credential(ns, domain, "api_key") or {}
+        if not rec.get("key"):
+            if _current_user_id is not None:
+                raise ValueError(f"No API key for {domain} in user mode")
+            key = io.io.prompt(f"🔑 Enter API key for {domain}: ").strip()
+            io.io.save_credential(ns, domain, "api_key", {"key": key})
+            io.io.notify(f"✅ Saved API key for {domain}")
+        else:
+            key = rec["key"]
+
         return key
 
-    def _prompt_user_for_api_key(self, domain):
-        key = io.io.prompt(f"🔑 Enter API key for {domain}: ").strip()
-        if not key:
-            io.io.notify("⚠️ No API key entered. Request will fail.")
-            return None
-        if domain not in self.credentials:
-            self.credentials[domain] = {}
-        self.credentials[domain]["api_key"] = key
-        save_json_file(CREDENTIALS_PATH, self.credentials)
-        io.io.notify(f"✅ API key saved for {domain}!")
-        return key
 
-    def _get_base_domain(self, url):
-        parsed = urlparse(url)
-        ext = tldextract.extract(parsed.netloc)
-        return f"{ext.domain}.{ext.suffix}"
-
-# --- OAuth Manager ---
 class OAuthManager:
+    """
+    Single manager for both authorization-code and client-credentials OAuth flows.
+
+    Config (per domain) under "<user_ns>/<domain>/oauth_cfg":
+      - grant_type:  "auth_code" | "machine"
+      - auth_method: "post" | "basic"
+      - client_id, client_secret
+      - authorize_url, redirect_uri   (for auth_code)
+      - token_url, scopes
+      - name: header name for injection (default "Authorization")
+
+    Token payload stored under "<user_ns>/<domain>/oauth": {"token": {...}}
+    """
+
     def __init__(self):
-        self.credentials = load_json_file(CREDENTIALS_PATH)
+        self.name = "oauth"
 
-    def get_oauth_token(self, url):
-        domain = self._get_base_domain(url)
-        io.io.notify(f"🔍 Checking OAuth token for: {domain}")
-        creds = self.credentials.get(domain, {}).get("oauth")
+    def get_oauth_token(self, url: str) -> str:
+        """
+        Returns a valid access token, fetching or refreshing as needed.
+        Raises if in user mode and config is missing.
+        """
+        ns     = _ns()
+        domain = _domain_of(url)
+        io.io.notify(f"🔍 Checking OAuth token for {domain} (user={ns})")
 
-        if not creds:
-            self._prompt_user_for_credentials(domain)
-            creds = self.credentials.get(domain, {}).get("oauth")
-            if not creds:
-                raise ValueError("❌ OAuth setup failed.")
+        # Load or prompt config
+        cfg = io.io.load_credential(ns, domain, f"{self.name}_cfg") or {}
+        if not cfg:
+            if _current_user_id is not None:
+                raise ValueError(f"No OAuth config for {domain} in user mode")
+            cfg = self._prompt_cfg(domain)
 
-        if time.time() >= creds.get("expires_at", 0):
-            return self.refresh_token(domain)
+        # Load stored token
+        rec   = io.io.load_credential(ns, domain, self.name) or {}
+        token = rec.get("token")
 
-        io.io.notify(f"✅ Token for {domain}: {creds['access_token'][:5]}********")
-        return creds["access_token"]
+        # Fetch or refresh if missing/expired
+        if not token or time.time() >= token["expires_at"] - EXPIRY_BUFFER:
+            token = self._fetch_or_refresh(token, cfg)
+            io.io.save_credential(ns, domain, self.name, {"token": token})
 
-    def refresh_token(self, domain):
-        creds = self.credentials[domain]["oauth"]
-        io.io.notify(f"🔄 Refreshing token for {domain}...")
-        res = requests.post(
-            creds["token_url"],
-            data={
-                "client_id": creds["client_id"],
-                "client_secret": creds["client_secret"],
-                "refresh_token": creds["refresh_token"],
-                "grant_type": "refresh_token"
-            },
-            headers={"Content-Type": "application/x-www-form-urlencoded"}
-        )
-        if res.status_code != 200:
-            raise ValueError(f"❌ Token refresh failed: {res.text}")
+        return token["access_token"]
 
-        token_data = res.json()
-        creds["access_token"] = token_data["access_token"]
-        creds["expires_at"] = time.time() + token_data["expires_in"]
-        self.credentials[domain]["oauth"] = creds
-        save_json_file(CREDENTIALS_PATH, self.credentials)
-        io.io.notify(f"✅ Token refreshed for {domain}.")
-        return creds["access_token"]
+    def _prompt_cfg(self, domain: str) -> dict:
+        io.io.notify(f"\n🔧 No OAuth config for {domain}. Let’s set it up.")
+        grant  = io.io.prompt("Grant type (auth_code/machine) [auth_code]: ")\
+                     .strip().lower() or "auth_code"
+        method = io.io.prompt("Auth method (post/basic) [post]: ")\
+                     .strip().lower() or "post"
 
-    def _prompt_user_for_credentials(self, domain):
-        io.io.notify("\n🌐 Enter OAuth details for", domain)
-        client_id = io.io.prompt("Client ID: ").strip()
+        client_id     = io.io.prompt("Client ID: ").strip()
         client_secret = io.io.prompt("Client Secret: ").strip()
-        auth_url = io.io.prompt("Auth URL: ").strip()
+        scopes        = io.io.prompt("Scopes (space-separated): ").strip()
+
+        authorize_url = ""
+        redirect_uri  = ""
+        if grant == "auth_code":
+            authorize_url = io.io.prompt("Authorize URL: ").strip()
+            redirect_uri  = io.io.prompt("Redirect URI: ").strip()
         token_url = io.io.prompt("Token URL: ").strip()
-        redirect_uri = io.io.prompt("Redirect URI: ").strip()
-        scopes = io.io.prompt("Scopes (space-separated): ").strip()
 
-        auth_params = {
-            "client_id": client_id,
-            "redirect_uri": redirect_uri,
-            "response_type": "code",
-            "scope": scopes,
-            "access_type": "offline"
-        }
-        full_auth_url = f"{auth_url}?{urlencode(auth_params)}"
-        io.io.notify(f"\n🔗 Open this URL to authenticate:\n{full_auth_url}")
-        webbrowser.open(full_auth_url)
-
-        code = io.io.get_oauth_code().strip()
-        io.io.notify("⏳ Exchanging code for token...")
-        res = requests.post(
-            token_url,
-            data={
-                "client_id": client_id,
-                "client_secret": client_secret,
-                "code": code,
-                "redirect_uri": redirect_uri,
-                "grant_type": "authorization_code"
-            },
-            headers={"Content-Type": "application/x-www-form-urlencoded"}
-        )
-        if res.status_code != 200:
-            io.io.notify(f"❌ Failed to get token: {res.text}")
-            return
-        token_data = res.json()
-        self.credentials.setdefault(domain, {})["oauth"] = {
-            "client_id": client_id,
+        cfg = {
+            "grant_type":    grant,            # "auth_code" or "machine"
+            "auth_method":   method,           # "post" or "basic"
+            "client_id":     client_id,
             "client_secret": client_secret,
-            "auth_url": auth_url,
-            "token_url": token_url,
-            "redirect_uri": redirect_uri,
-            "scopes": scopes,
-            "access_token": token_data["access_token"],
-            "refresh_token": token_data.get("refresh_token", ""),
-            "expires_at": time.time() + token_data["expires_in"]
+            "authorize_url": authorize_url,
+            "redirect_uri":  redirect_uri,
+            "token_url":     token_url,
+            "scopes":        scopes,
+            "name":          "Authorization",
         }
-        save_json_file(CREDENTIALS_PATH, self.credentials)
-        io.io.notify(f"✅ OAuth credentials saved for {domain}.")
+        io.io.save_credential(_ns(), domain, f"{self.name}_cfg", cfg)
+        io.io.notify(f"✅ Saved OAuth config for {domain}")
+        return cfg
 
-    def _get_base_domain(self, url):
-        parsed = urlparse(url)
-        ext = tldextract.extract(parsed.netloc)
-        return f"{ext.domain}.{ext.suffix}"
+    def _fetch_or_refresh(self, token: Optional[dict], cfg: dict) -> dict:
+        sess = OAuth2Session(
+            client_id                   = cfg["client_id"],
+            client_secret               = cfg["client_secret"],
+            scope                       = cfg["scopes"],
+            redirect_uri                = cfg.get("redirect_uri") or None,
+            token_endpoint_auth_method  = (
+                "client_secret_post"
+                if cfg["auth_method"] == "post"
+                else "client_secret_basic"
+            )
+        )
 
-# --- Machine Manager ---
-class MachineManager:
-    def __init__(self):
-        self.credentials = load_json_file(CREDENTIALS_PATH)
-
-    def get_oauth_token(self, url):
-        domain = self._get_base_domain(url)
-        io.io.notify(f"🤖 Checking machine token for: {domain}")
-        creds = self.credentials.get(domain, {}).get("machine")
-
-        if not creds:
-            self._prompt_user_for_credentials(domain)
-            creds = self.credentials.get(domain, {}).get("machine")
-            if not creds:
-                raise ValueError("❌ Machine credential setup failed.")
-
-        if time.time() >= creds.get("expires_at", 0):
-            return self._refresh_token(domain)
-
-        io.io.notify(f"✅ Token for {domain}: {creds['access_token'][:5]}********")
-        return creds["access_token"]
-
-    def _refresh_token(self, domain):
-        creds = self.credentials[domain]["machine"]
-        io.io.notify(f"🔄 Fetching new token for {domain}...")
-
-        res = requests.post(
-            creds["token_url"],
-            data={
-                "grant_type": "client_credentials",
-                "client_id": creds["client_id"],
-                "client_secret": creds["client_secret"]
-            },
-            headers={
-                    "Content-Type": "application/x-www-form-urlencoded",
-                    "Accept": "application/json"
+        if token and token.get("refresh_token"):
+            # Refresh existing token
+            params = {
+                "url":            cfg["token_url"],
+                "refresh_token":  token["refresh_token"],
             }
-        )
+            if cfg["auth_method"] == "post":
+                params.update({
+                    "client_id":     cfg["client_id"],
+                    "client_secret": cfg["client_secret"],
+                })
+            new_token = sess.refresh_token(**params)
 
-        if res.status_code != 200:
-            raise ValueError(f"❌ Token request failed: {res.text}")
+        else:
+            # Initial fetch
+            if cfg["grant_type"] == "machine":
+                params = {
+                    "url":        cfg["token_url"],
+                    "grant_type": "client_credentials",
+                }
+                if cfg["auth_method"] == "post":
+                    params.update({
+                        "client_id":     cfg["client_id"],
+                        "client_secret": cfg["client_secret"],
+                    })
+                new_token = sess.fetch_token(**params)
+            else:  # auth_code
+                uri, _ = sess.create_authorization_url(cfg["authorize_url"])
+                io.io.notify(f"\n🔗 Open to authenticate:\n{uri}")
+                webbrowser.open(uri)
+                code = io.io.get_oauth_code().strip()
+                params = {
+                    "url":               cfg["token_url"],
+                    "code":              code,
+                    "grant_type":        "authorization_code",
+                    "include_client_id": False,
+                }
+                if cfg["auth_method"] == "post":
+                    params.update({
+                        "client_id":     cfg["client_id"],
+                        "client_secret": cfg["client_secret"],
+                    })
+                new_token = sess.fetch_token(**params)
 
-        token_data = res.json()
-        creds["access_token"] = token_data["access_token"]
-        creds["expires_at"] = time.time() + token_data["expires_in"]
-        self.credentials[domain]["machine"] = creds
-        save_json_file(CREDENTIALS_PATH, self.credentials)
-        io.io.notify(f"✅ Machine token refreshed for {domain}.")
-        return creds["access_token"]
-
-    def _prompt_user_for_credentials(self, domain):
-        io.io.notify(f"\n🛠️  Enter machine-to-machine credentials for {domain}")
-        client_id = io.io.prompt("Client ID: ").strip()
-        client_secret = io.io.prompt("Client Secret: ").strip()
-        token_url = io.io.prompt("Token URL: ").strip()
-
-        self.credentials.setdefault(domain, {})["machine"] = {
-            "client_id": client_id,
-            "client_secret": client_secret,
-            "token_url": token_url,
-            "access_token": "",
-            "expires_at": 0
-        }
-        save_json_file(CREDENTIALS_PATH, self.credentials)
-        io.io.notify(f"✅ Machine credentials saved for {domain}.")
-
-    def _get_base_domain(self, url):
-        parsed = urlparse(url)
-        ext = tldextract.extract(parsed.netloc)
-        return f"{ext.domain}.{ext.suffix}"
+        new_token["expires_at"] = time.time() + new_token.get("expires_in", 0)
+        return new_token
