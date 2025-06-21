@@ -8,6 +8,9 @@ Invoke is a lightweight framework that connects LLMs with real-world APIs using 
 
 See the full demo [here](https://www.youtube.com/watch?v=CQISrRpyigs).
 
+[![GitHub stars](https://img.shields.io/github/stars/mercury0100/invoke?style=social)](https://github.com/mercury0100/invoke/stargazers)
+
+
 ---
 
 ## 📦 Installation
