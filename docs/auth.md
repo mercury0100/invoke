@@ -81,8 +81,8 @@ Manages all OAuth2 flows—authorization‐code **and** client-credentials—sco
 ```python
 from invoke_agent.auth import set_current_user
 
-# e.g. in a web request after authentication:
-set_current_user(current_user.id)
+# Set namespace before running queries:
+set_current_user('current_user_id')
 
 # All OAuthManager calls now use credentials under that user_id namespace,
 # and will never prompt interactively.

@@ -3,7 +3,7 @@
   "label": "Google Places API",
   "base_url": "https://maps.googleapis.com/maps/api/place",
   "auth": {
-    "type": "query"
+    "type": "api_key"
   },
   "endpoints": [
     {

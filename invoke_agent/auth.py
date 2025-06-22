@@ -102,7 +102,8 @@ class OAuthManager:
       - token_url, scopes
       - name: header name for injection (default "Authorization")
 
-    Token payload stored under "<user_ns>/<domain>/oauth": {"token": {...}}
+    Token payload stored under the same namespace:
+      "<user_ns or global>/<domain>/oauth": {"token": {...}}
     """
 
     def __init__(self):
@@ -111,27 +112,34 @@ class OAuthManager:
     def get_oauth_token(self, url: str) -> str:
         """
         Returns a valid access token, fetching or refreshing as needed.
+        Machine-flow tokens always live under the GLOBAL_NS; auth-code tokens
+        use the namespace set by set_current_user().
         Raises if in user mode and config is missing.
         """
-        ns     = _ns()
-        domain = _domain_of(url)
-        io.io.notify(f"🔍 Checking OAuth token for {domain} (user={ns})")
+        user_ns = _ns()
+        domain  = _domain_of(url)
+        io.io.notify(f"🔍 Checking OAuth token for {domain} (user namespace={user_ns})")
 
-        # Load or prompt config
-        cfg = io.io.load_credential(ns, domain, f"{self.name}_cfg") or {}
+        # Load config from user namespace
+        cfg = io.io.load_credential(user_ns, domain, f"{self.name}_cfg") or {}
+
+        # Prompt for config if missing
         if not cfg:
-            if _current_user_id is not None:
+            if user_ns != GLOBAL_NS and _current_user_id is not None:
                 raise ValueError(f"No OAuth config for {domain} in user mode")
             cfg = self._prompt_cfg(domain)
 
+        # Determine namespace for storing tokens
+        ns_for_creds = GLOBAL_NS if cfg.get("grant_type") == "machine" else user_ns
+
         # Load stored token
-        rec   = io.io.load_credential(ns, domain, self.name) or {}
+        rec   = io.io.load_credential(ns_for_creds, domain, self.name) or {}
         token = rec.get("token")
 
         # Fetch or refresh if missing/expired
         if not token or time.time() >= token["expires_at"] - EXPIRY_BUFFER:
             token = self._fetch_or_refresh(token, cfg)
-            io.io.save_credential(ns, domain, self.name, {"token": token})
+            io.io.save_credential(ns_for_creds, domain, self.name, {"token": token})
 
         return token["access_token"]
 
@@ -193,7 +201,6 @@ class OAuthManager:
                     "client_secret": cfg["client_secret"],
                 })
             new_token = sess.refresh_token(**params)
-
         else:
             # Initial fetch
             if cfg["grant_type"] == "machine":
@@ -207,7 +214,8 @@ class OAuthManager:
                         "client_secret": cfg["client_secret"],
                     })
                 new_token = sess.fetch_token(**params)
-            else:  # auth_code
+            else:
+                # auth_code flow
                 uri, _ = sess.create_authorization_url(cfg["authorize_url"])
                 io.io.notify(f"\n🔗 Open to authenticate:\n{uri}")
                 webbrowser.open(uri)
