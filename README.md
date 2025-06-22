@@ -1,10 +1,10 @@
 # Codename: Invoke
 
-![logo](https://raw.githubusercontent.com/mercury0100/invoke/main/img/invoke-spellbook-logo.png)
+![logo](https://raw.githubusercontent.com/mercury0100/invoke/master/img/invoke-spellbook-logo.png)
 
 Invoke is a lightweight framework that connects LLMs with real-world APIs using natural language and structured tool calls.
 
-![25-second demo](https://raw.githubusercontent.com/mercury0100/invoke/main/img/demo.gif)
+![25-second demo](https://raw.githubusercontent.com/mercury0100/invoke/master/img/demo.gif)
 
 See the full demo [here](https://www.youtube.com/watch?v=CQISrRpyigs).
 
